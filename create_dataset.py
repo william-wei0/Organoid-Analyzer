@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-from sklearn.preprocessing import StandardScaler
 from Config import GENERATED_DIR, features, track_features, SEQ_LEN, DATASET_CONFIGS, SEQ_DATASET_PREFIX, TRACK_DATASET_PREFIX
 
 class Dataset_Batch:
@@ -474,37 +473,6 @@ if __name__ == "__main__":
     save_unscaled_spot_features(spots_df, output_prefix="")
     save_unscaled_track_features(tracks_df, datasets=datasets, output_prefix="")
 
-    all_features = sorted(set(features).union(set(track_features)))
-    spots_aligned = spots_df.reindex(columns=all_features, fill_value=0)
-    tracks_aligned = tracks_df.reindex(columns=all_features, fill_value=0)
-
-    combined = pd.concat([spots_aligned, tracks_aligned], axis=0)
-
-    # Fit scaler on global data
-    scaler = StandardScaler()
-    scaler.fit(combined)
-
-    # Transform back into DataFrames
-    spots_scaled = pd.DataFrame(
-        scaler.transform(spots_aligned),
-        columns=all_features,
-        index=spots_df.index
-    )
-    tracks_scaled = pd.DataFrame(
-        scaler.transform(tracks_aligned),
-        columns=all_features,
-        index=tracks_df.index
-    )
-
-    # Restore original columns
-    spots_scaled = spots_scaled[features]
-    tracks_scaled = tracks_scaled[track_features]
-    spots_final = spots_df.copy()
-    spots_final[features] = spots_scaled
-
-    tracks_final = tracks_df.copy()
-    tracks_final[track_features] = tracks_scaled
-
     features = [ # Time-based Features 
         'AREA', 'PERIMETER', 'CIRCULARITY',
         'ELLIPSE_ASPECTRATIO','SOLIDITY', 
@@ -513,11 +481,11 @@ if __name__ == "__main__":
 
     from Config import SEQ_LEN
     for seq_len_iter in [SEQ_LEN]:
-        align_and_save_dataset(spots_final,
+        align_and_save_dataset(spots_df,
                             features, seq_len=seq_len_iter,
                             output_prefix=SEQ_DATASET_PREFIX)
     
-    build_track_level_dataset(tracks_final, datasets=datasets, output_prefix=TRACK_DATASET_PREFIX)   
+    build_track_level_dataset(tracks_df, datasets=datasets, output_prefix=TRACK_DATASET_PREFIX)   
     count_num_of_tracks(f"{GENERATED_DIR}/{SEQ_DATASET_PREFIX}trajectory_dataset_{SEQ_LEN}.npz",
                         f"{GENERATED_DIR}/{TRACK_DATASET_PREFIX}track_dataset.npz",)
     

@@ -14,6 +14,7 @@ from results_utils import *
 from UnifiedFusionModel import UnifiedFusionModel
 from shap_analysis import SHAP_UnifiedFusionModel
 from collections import defaultdict
+from sklearn.preprocessing import StandardScaler
 
 
 import random
@@ -153,6 +154,46 @@ def run_inference(model, X_seq, X_track, device):
         preds = np.argmax(probs, axis=1)
     return preds, probs
 
+def normalize_dataset(X_seq_train, X_track_train,
+                      X_seq_val = None , X_track_val = None,
+                      X_seq_test = None, X_track_test = None):
+    def transform_seq(X_seq, scaler):
+        if X_seq is None:
+            return None
+        n_samples, n_timesteps, n_features_seq = X_seq.shape
+        X_flat = X_seq.reshape(-1, n_features_seq)
+        X_scaled = scaler.transform(X_flat)
+        return X_scaled.reshape(n_samples, n_timesteps, n_features_seq)
+
+    def transform_track(X_track, scaler):
+        if X_track is None:
+            return None
+        return scaler.transform(X_track)
+
+    seq_scaler = StandardScaler()
+    track_scaler = StandardScaler()
+
+    # Flatten sequence data (combine samples and timesteps)
+    n_samples, n_timesteps, n_features_seq = X_seq_train.shape
+    X_seq_train_flat = X_seq_train.reshape(-1, n_features_seq)
+
+    # Fit scalers
+    seq_scaler.fit(X_seq_train_flat)
+    track_scaler.fit(X_track_train)
+
+
+    X_seq_train_scaled = transform_seq(X_seq_train, seq_scaler)
+    X_seq_val_scaled   = transform_seq(X_seq_val, seq_scaler)
+    X_seq_test_scaled  = transform_seq(X_seq_test, seq_scaler)
+
+    X_track_train_scaled = transform_track(X_track_train, track_scaler)
+    X_track_val_scaled   = transform_track(X_track_val, track_scaler)
+    X_track_test_scaled  = transform_track(X_track_test, track_scaler)
+
+    return (X_seq_train_scaled, X_track_train_scaled,
+            X_seq_val_scaled, X_track_val_scaled,
+            X_seq_test_scaled, X_track_test_scaled)
+
 def Train_UnifiedFusionModel(seq_path, track_path, result_path, test_train_split_annotation_path,
                              seq_input_size=9, track_input_size=12, hidden_size=128, fusion_size=128, dropout=0.5, model_save_path="", test_prefix="no_prefix"):
 
@@ -170,8 +211,15 @@ def Train_UnifiedFusionModel(seq_path, track_path, result_path, test_train_split
         print("Unknown labels label found in test set but not in train:", unknown_labels)
 
 
-    X_seq_train, X_seq_val, X_track_train, X_track_val, y_train, y_val = train_test_split(
-        X_seq_train_total, X_track_train_total, y_train, test_size=0.2, random_state=42, stratify=y_train)
+    (X_seq_train, X_seq_val, 
+    X_track_train, X_track_val, 
+    y_train, y_val) = train_test_split(X_seq_train_total, X_track_train_total, y_train, test_size=0.2, random_state=42, stratify=y_train)
+    
+    (X_seq_train, X_track_train, 
+    X_seq_val,   X_track_val, 
+    X_seq_test,  X_track_test) = normalize_dataset(X_seq_train, X_track_train, 
+                                                  X_seq_val,   X_track_val, 
+                                                  X_seq_test,  X_track_test)
 
     X_seq_train = torch.tensor(X_seq_train, dtype=torch.float32)
     X_seq_val = torch.tensor(X_seq_val, dtype=torch.float32)
@@ -416,7 +464,17 @@ def Test_UnifiedFusionModel(seq_path, track_path, model_path, test_train_split_a
     print("[TEST] Loading external test dataset...")
 
     
-    X_seq_train, X_seq_test, X_track_train, X_track_test, y_train, y_test_original = train_test_split_by_case(seq_path, track_path, test_train_split_annotation_path=test_train_split_annotation_path)
+    X_seq_train_total, X_seq_test, X_track_train_total, X_track_test, y_train, y_test_original = train_test_split_by_case(seq_path, track_path, test_train_split_annotation_path=test_train_split_annotation_path)
+    
+    (X_seq_train, X_seq_val, 
+    X_track_train, X_track_val, 
+    y_train, y_val) = train_test_split(X_seq_train_total, X_track_train_total, y_train, test_size=0.2, random_state=42, stratify=y_train)
+    
+    (X_seq_train, X_track_train, 
+    X_seq_val,   X_track_val, 
+    X_seq_test,  X_track_test) = normalize_dataset(X_seq_train, X_track_train, 
+                                                  X_seq_val,   X_track_val, 
+                                                  X_seq_test,  X_track_test)
 
     le = LabelEncoder()
     y_train = le.fit_transform(y_train)
