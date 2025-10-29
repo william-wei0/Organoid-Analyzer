@@ -35,7 +35,7 @@ def sort_images_by_XY(images_folder):
         print(f"Moved {fname} to {dest_folder}")
 
 if __name__ == "__main__":
-    base_folder = r"C:\Users\billy\Documents\VIP Images\William_20250710_PDO device 1 to 8_for AI"
+    base_folder = r"/Data/PDO"
 
     for subfolder in sorted(os.listdir(base_folder)):
         subfolder_path = os.path.join(base_folder, subfolder)
