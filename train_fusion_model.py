@@ -154,9 +154,8 @@ def run_inference(model, X_seq, X_track, device):
         preds = np.argmax(probs, axis=1)
     return preds, probs
 
-def normalize_dataset(X_seq_train, X_track_train,
-                      X_seq_val = None , X_track_val = None,
-                      X_seq_test = None, X_track_test = None):
+def normalize_dataset(X_seq, X_track, seq_scaler = None , track_scaler = None):
+    # Helper functions
     def transform_seq(X_seq, scaler):
         if X_seq is None:
             return None
@@ -170,29 +169,25 @@ def normalize_dataset(X_seq_train, X_track_train,
             return None
         return scaler.transform(X_track)
 
-    seq_scaler = StandardScaler()
-    track_scaler = StandardScaler()
+    # If no set scaler, create new seq_scaler and fit to training data
+    if not seq_scaler:
+        seq_scaler = StandardScaler()
 
-    # Flatten sequence data (combine samples and timesteps)
-    n_samples, n_timesteps, n_features_seq = X_seq_train.shape
-    X_seq_train_flat = X_seq_train.reshape(-1, n_features_seq)
+        # Flatten sequence data (needed to use the scaler)
+        n_samples, n_timesteps, n_features_seq = X_seq.shape
+        X_seq_train_flat = X_seq.reshape(-1, n_features_seq)
 
-    # Fit scalers
-    seq_scaler.fit(X_seq_train_flat)
-    track_scaler.fit(X_track_train)
+        seq_scaler.fit(X_seq_train_flat)
 
+    # If no set scaler, create new track_scaler and fit to training data
+    if not track_scaler:
+        track_scaler = StandardScaler()
+        track_scaler.fit(X_track)
 
-    X_seq_train_scaled = transform_seq(X_seq_train, seq_scaler)
-    X_seq_val_scaled   = transform_seq(X_seq_val, seq_scaler)
-    X_seq_test_scaled  = transform_seq(X_seq_test, seq_scaler)
+    X_seq_train_scaled = transform_seq(X_seq, seq_scaler)
+    X_track_train_scaled = transform_track(X_track, track_scaler)
 
-    X_track_train_scaled = transform_track(X_track_train, track_scaler)
-    X_track_val_scaled   = transform_track(X_track_val, track_scaler)
-    X_track_test_scaled  = transform_track(X_track_test, track_scaler)
-
-    return (X_seq_train_scaled, X_track_train_scaled,
-            X_seq_val_scaled, X_track_val_scaled,
-            X_seq_test_scaled, X_track_test_scaled)
+    return (X_seq_train_scaled, X_track_train_scaled, seq_scaler, track_scaler)
 
 def Train_UnifiedFusionModel(seq_path, track_path, result_path, test_train_split_annotation_path,
                              seq_input_size=9, track_input_size=12, hidden_size=128, fusion_size=128, dropout=0.5, model_save_path="", test_prefix="no_prefix"):
@@ -200,27 +195,31 @@ def Train_UnifiedFusionModel(seq_path, track_path, result_path, test_train_split
     print("[STEP 1] Loading and aligning data...")
     X_seq_train_total, X_seq_test, X_track_train_total, X_track_test, y_train_total, y_test_original = train_test_split_by_case(seq_path, track_path, test_train_split_annotation_path=test_train_split_annotation_path)
 
+    #Set labels
     le = LabelEncoder()
     y_train = le.fit_transform(y_train_total)
     y_test = le.transform(y_test_original)
 
+    #Check if some labels are in the test sets but not in the training sets
     train_classes = set(le.classes_)
     test_classes = set(y_test_original)
     unknown_labels = test_classes - train_classes
     if (unknown_labels):
         print("Unknown labels label found in test set but not in train:", unknown_labels)
 
-
+    #Split train and validation cases
     (X_seq_train, X_seq_val, 
     X_track_train, X_track_val, 
     y_train, y_val) = train_test_split(X_seq_train_total, X_track_train_total, y_train, test_size=0.2, random_state=42, stratify=y_train)
     
-    (X_seq_train, X_track_train, 
-    X_seq_val,   X_track_val, 
-    X_seq_test,  X_track_test) = normalize_dataset(X_seq_train, X_track_train, 
-                                                  X_seq_val,   X_track_val, 
-                                                  X_seq_test,  X_track_test)
+    # Normalize Training Data and set Scaler
+    X_seq_train, X_track_train, seq_scaler, track_scaler = normalize_dataset(X_seq_train, X_track_train)
+    
+    # Normalize Validation & Test Data using Scaler from Training Data
+    X_seq_val, X_track_val, _seq_scal, _track_scal = normalize_dataset(X_seq_val, X_track_val, seq_scaler, track_scaler)
+    X_seq_test, X_track_test, _seq_scal, _track_scal = normalize_dataset(X_seq_test, X_track_test, seq_scaler, track_scaler)
 
+    #Transform to data to tensors
     X_seq_train = torch.tensor(X_seq_train, dtype=torch.float32)
     X_seq_val = torch.tensor(X_seq_val, dtype=torch.float32)
     X_seq_test = torch.tensor(X_seq_test, dtype=torch.float32)
@@ -233,6 +232,7 @@ def Train_UnifiedFusionModel(seq_path, track_path, result_path, test_train_split
     y_val_tensor = torch.tensor(y_val, dtype=torch.long)
     y_test_tensor = torch.tensor(y_test, dtype=torch.long)
 
+    # Create Tensor Datasets
     train_dataset = TensorDataset(X_seq_train, X_track_train, y_train_tensor)
     val_dataset = TensorDataset(X_seq_val, X_track_val, y_val_tensor)
     test_dataset = TensorDataset(X_seq_test, X_track_test, y_test_tensor)
@@ -470,11 +470,11 @@ def Test_UnifiedFusionModel(seq_path, track_path, model_path, test_train_split_a
     X_track_train, X_track_val, 
     y_train, y_val) = train_test_split(X_seq_train_total, X_track_train_total, y_train, test_size=0.2, random_state=42, stratify=y_train)
     
-    (X_seq_train, X_track_train, 
-    X_seq_val,   X_track_val, 
-    X_seq_test,  X_track_test) = normalize_dataset(X_seq_train, X_track_train, 
-                                                  X_seq_val,   X_track_val, 
-                                                  X_seq_test,  X_track_test)
+    # Normalize Training Data and set Scaler
+    X_seq_train, X_track_train, seq_scaler, track_scaler = normalize_dataset(X_seq_train, X_track_train)
+    
+    # Normalize Test Data using Scaler from Training Data
+    X_seq_test, X_track_test, _seq_scal, _track_scal = normalize_dataset(X_seq_test, X_track_test, seq_scaler, track_scaler)
 
     le = LabelEncoder()
     y_train = le.fit_transform(y_train)
