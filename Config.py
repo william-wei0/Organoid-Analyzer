@@ -15,12 +15,12 @@ RESULTS_DIR = "./Results"
 
 
 # ======= CELL TRACKING SETTINGS =======
-FIJI_PATH = r"path to \Fiji.app"
+FIJI_PATH = r"/Apps/Fiji.app"
 JAVA_ARGUMENTS = '-Xmx12g'
 
 SPECIAL_THRESHOLDING = {"DiD-MSLN_NCI6_5 percent 20ms001\XY4" : 130}
 CELL_TRACKING_DATASET_CONFIGS = {
-    "CART": {"images_folder" : r"path to \William_20250429_8 different patient_day 6 CART_for AI", 
+    "CART": {"images_folder" : r"./Data/CART_images", 
                   "case_name": "CART",
                      "prefix": "",
              "subcase_names" : ["NYU318",
@@ -33,7 +33,7 @@ CELL_TRACKING_DATASET_CONFIGS = {
                                 "NCI9"],
         "specific_thresholds": {"DiD-MSLN_NCI6_5 percent 20ms001\XY4" : 130}},
 
-    "2nd": {"images_folder" : r"path to \William_20250522_Meso IL18 CART_5 patients_day 6_for AI", 
+    "2nd": {"images_folder" : r"./Data/2ND_images", 
                  "case_name": "2ND",
                     "prefix": "2nd_",
             "subcase_names" : ["NYU352",
@@ -42,7 +42,7 @@ CELL_TRACKING_DATASET_CONFIGS = {
                                "NCI8",
                                "NCI9"]},
     
-    "PDO": {"images_folder" : r"path to \William_20250710_PDO device 1 to 8_for AI", 
+    "PDO": {"images_folder" : r"./Data/PDO_images", 
                  "case_name": "PDO",
                     "prefix": "",
             "subcase_names" : ["Device1",
@@ -78,7 +78,7 @@ TRACK_DATASET_PREFIX = ""
 features = [ # Time-based Features 
     'AREA', 'PERIMETER', 'CIRCULARITY',
     'ELLIPSE_ASPECTRATIO','SOLIDITY', 
-    'SPEED', "MEAN_SQUARE_DISPLACEMENT", "RADIUS"
+    'SPEED', "MEAN_SQUARE_DISPLACEMENT", #"RADIUS"
 ]
 
 
@@ -92,7 +92,7 @@ TRACK_LEN = len(track_features)
 
 
 # ======= TRAINING SETTINGS =======
-TEST_TRAIN_SPLIT_ANNOTATION_PATH = r"path to \Annotations.xlsx"
+TEST_TRAIN_SPLIT_ANNOTATION_PATH = r"./Data/Annotations.xlsx"
 SEQ_DATASET_PATH = os.path.join(GENERATED_DIR, f"{SEQ_DATASET_PREFIX}trajectory_dataset_{SEQ_LEN}.npz")
 TRACK_DATASET_PATH = os.path.join(GENERATED_DIR, f"{TRACK_DATASET_PREFIX}track_dataset.npz")
 
