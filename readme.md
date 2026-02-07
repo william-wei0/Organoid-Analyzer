@@ -29,7 +29,6 @@ Git clone the project:
  - git clone https://github.com/william-wei0/Organoid-Analyzer.git
 
 Alternatively download the project from GitHub:
-- Go to [https://github.com/william-wei0/Organoid-Analyzer](https://github.com/william-wei0/Organoid-Analyzer)
 - Click **Code > Download ZIP**
 - Extract the ZIP file to a new folder
 
