@@ -1,6 +1,6 @@
 # Organoid Analyzer
 
-A Python-based machine learning pipeline for analyzing time-lapse microscopy images of organoids using cell tracking and deep learning classification.
+A Python-based machine learning pipeline for analyzing the morphology and trajectory of CAR T cells on patient outcomes from time-lapse flourescent microscopy images of patient-derived organoids of pancreatic adenocarcinoma using cell tracking and deep learning classification.
 
 ## Overview
 
@@ -361,13 +361,19 @@ GPL-3.0
 This project uses:
 - **Fiji/ImageJ** for image processing
 ```
-Schindelin, J., Arganda-Carreras, I., Frise, E., Kaynig, V., Longair, M., Pietzsch, T., … Cardona, A. (2012). Fiji: an open-source platform for biological-image analysis. Nature Methods, 9(7), 676–682. doi:10.1038/nmeth.2019
+Schindelin, J., Arganda-Carreras, I., Frise, E., Kaynig, V., Longair, M., Pietzsch, T., … Cardona, A. (2012).
+Fiji: an open-source platform for biological-image analysis. Nature Methods, 9(7),676–682. 
+doi:10.1038/nmeth.2019
 ```
 - **TrackMate** for cell tracking
 ```
-Ershov, D., Phan, M.-S., Pylvänäinen, J. W., Rigaud, S. U., Le Blanc, L., Charles-Orszag, A., … Tinevez, J.-Y. (2022). TrackMate 7: integrating state-of-the-art segmentation algorithms into tracking pipelines. Nature Methods, 19(7), 829–832. doi:10.1038/s41592-022-01507-1
+Ershov, D., Phan, M.-S., Pylvänäinen, J. W., Rigaud, S. U., Le Blanc, L., Charles-Orszag, A., … Tinevez, J.-Y. (2022). 
+TrackMate 7: integrating state-of-the-art segmentation algorithms into tracking pipelines. Nature Methods, 19(7), 829–832. 
+doi:10.1038/s41592-022-01507-1
 
 and / or
 
-Tinevez, J.-Y., Perry, N., Schindelin, J., Hoopes, G. M., Reynolds, G. D., Laplantine, E., … Eliceiri, K. W. (2017). TrackMate: An open and extensible platform for single-particle tracking. Methods, 115, 80–90. doi:10.1016/j.ymeth.2016.09.016
+Tinevez, J.-Y., Perry, N., Schindelin, J., Hoopes, G. M., Reynolds, G. D., Laplantine, E., … Eliceiri, K. W. (2017). 
+TrackMate: An open and extensible platform for single-particle tracking. Methods, 115, 80–90.
+doi:10.1016/j.ymeth.2016.09.016
 ```
