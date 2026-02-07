@@ -1,6 +1,6 @@
 # Organoid Analyzer
 
-A Python-based machine learning pipeline for analyzing the morphology and trajectory of CAR T cells on patient outcomes from time-lapse flourescent microscopy images of patient-derived organoids of pancreatic adenocarcinoma using cell tracking and deep learning classification.
+A Python-based machine learning pipeline for analyzing the morphology and trajectory of CAR T cells on patient outcomes from time-lapse flourescent microscopy images of patient-derived organoids of pancreatic adenocarcinoma.
 
 ## Overview
 
@@ -332,27 +332,12 @@ Both feature types are weighted, fused, and passed through a classifier for 3-cl
 - **Fiji**: For TrackMate cell tracking
 - **Additional packages**: See `requirements.txt` for full list
 
-### Key Python Packages
-- PyTorch (for deep learning)
-- NumPy (for numerical operations)
-- Pandas (for data manipulation)
-- Scikit-learn (for evaluation metrics)
-- SHAP (for model interpretability)
-- Matplotlib/Seaborn (for visualizations)
-- JPype (for Fiji integration)
-
 ---
 
 ## Support
 
 For issues, questions, or contributions, please visit the GitHub repository:
 [https://github.com/william-wei0/Organoid-Analyzer](https://github.com/william-wei0/Organoid-Analyzer)
-
----
-
-## License
-
-GPL-3.0
 
 ---
 
