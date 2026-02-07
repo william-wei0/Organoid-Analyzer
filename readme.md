@@ -25,8 +25,10 @@ This project uses Fiji's TrackMate plugin to track cells in time-lapse images, e
 
 ### 1. Download the Repository
 
-Download the project from GitHub:
-- Go to [https://github.com/william-wei0/Organoid-Analyzer](https://github.com/william-wei0/Organoid-Analyzer)
+Git clone the project:
+ - "git clone https://github.com/william-wei0/Organoid-Analyzer.git"
+
+Alternatively download the project:
 - Click **Code > Download ZIP**
 - Extract the ZIP file to a new folder
 
@@ -350,7 +352,7 @@ For issues, questions, or contributions, please visit the GitHub repository:
 
 ## License
 
-[GPL-3.0]
+GPL-3.0
 
 ---
 
