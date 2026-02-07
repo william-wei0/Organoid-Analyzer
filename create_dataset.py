@@ -2,16 +2,16 @@ import os
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-from Config import GENERATED_DIR, features, track_features, SEQ_LEN, DATASET_CONFIGS, SEQ_DATASET_PREFIX, TRACK_DATASET_PREFIX
+from Config import GENERATED_DIR, SEQ_FEATURES, TRACK_FEATURES, SEQ_LEN, DATASET_CONFIGS, SEQ_DATASET_PREFIX, TRACK_DATASET_PREFIX
 
 class Dataset_Batch:
-    def __init__(self, annotation_path, data_folder, mapping = {}):
+    def __init__(self, annotation_path, data_folder, data = {}):
         self.annotation_path = annotation_path
         self.data_folder = data_folder
-        self.mapping = mapping
+        self.data = data
 
 
-def save_unscaled_spot_features(spots_df, output_prefix=""):
+def save_unscaled_spot_features(spots_df, features, output_prefix=""):
     # extract unscaled features and save to CSV
     unscaled_df = spots_df[["PREFIX", "TRACK_ID", "FRAME", "LABEL"] + features].copy()
 
@@ -19,15 +19,16 @@ def save_unscaled_spot_features(spots_df, output_prefix=""):
     unscaled_df.to_csv(out_path, index=False)
     print(f"[INFO] Saved unscaled spot features to: {out_path}")
 
-def save_unscaled_track_features(tracks_df, datasets, output_prefix=""):
+def save_unscaled_track_features(tracks_df, datasets, track_features, output_prefix=""):
     # extract unscaled track features and save to CSV
     merged_mapping = {}
 
     for label in datasets:
-        overlap = merged_mapping.keys() & datasets[label].mapping.keys()  # intersection of keys
+        label_mapping = {device: dataset_data.get("label") for device, dataset_data in datasets[label].data.items()}
+        overlap = merged_mapping.keys() & label_mapping.keys()  # intersection of keys
         if overlap:
             raise ValueError(f"Overlapping keys found when merging: {overlap}")
-        merged_mapping.update(datasets[label].mapping)
+        merged_mapping.update(label_mapping)
 
     def match_label(prefix, merged_mapping):
         prefix = "_".join(prefix.split("_")[:2])
@@ -43,43 +44,20 @@ def save_unscaled_track_features(tracks_df, datasets, output_prefix=""):
 
 
 # === Step 1: Load Annotations ===
-def load_annotations(path, folder):
+def load_annotations(path, data_folder):
+    data_folder = data_folder.split("/")[-1]
+    df = pd.read_excel(path, sheet_name=0)
+    device_ids = df.iloc[:, 1].astype(str).str.strip()
+    size_changes = df.iloc[:, 4].astype(float)
+    labels = df.iloc[:, 5].astype(float)
 
-    folder = folder.split("/")[-1]
-    match folder:
-        case "CART":
-            df = pd.read_excel(path, sheet_name="Summary")
-            id_series = df.iloc[:, 1].astype(str).str.strip()
-            label_series = df.iloc[:, 2].astype(float)
-        case "2ND":
-            df = pd.read_excel(path, sheet_name=0)
-            id_series = df["Meso IL18 CAR T cells"].astype(str).str.strip()
-            label_series = df["Labels"].astype(float)
-        case "PDO":
-            df = pd.read_excel(path, sheet_name="Statistics")
-            df["Device Name"] = df["Name"].astype(str).str.replace(" ", "")
-            id_series = df["Name"].astype(str).str.replace(" ", "")
-            label_series = df["Score"]
-        case "CAF":
-            df = pd.read_excel(path, sheet_name="Statistics")
-            df["Device Name"] = df["Name"].astype(str).str.replace(" ", "")
-            id_series = df["Name"].astype(str).str.replace(" ", "")
-            label_series = df["Score"]
-        case "DiffStroma":
-            df = pd.read_excel(path, sheet_name="Statistics")
-            df["Device Name"] = df["Name"].astype(str).str.replace(" ", "")
-            id_series = df["Name"].astype(str).str.replace(" ", "")
-            label_series = df["Score"]
-
-        case _:
-            raise Exception(f"Undefined Data loading type: {folder}. Specify how to load the annotations in load_annoations.")
-            
-    mapping = dict(zip(id_series, label_series))
-    mapping = {f"{folder}_{device}": label for device, label in mapping.items()}
+    data = {
+        f"{data_folder}_{device}": {"label": label, "size_change": size_change}
+        for device, label, size_change in zip(device_ids, labels, size_changes)
+    }
     print(f"Loaded annotation from {path}")
-    print("Total entries:", len(mapping))
-    print(mapping)
-    return mapping
+    print("Total entries:", len(data))
+    return data
 
 
 # === Step 2: Load Track/Spot Files ===
@@ -99,7 +77,7 @@ def load_tracks_and_spots(datasets):
             track_path = os.path.join(datasets[label].data_folder, file_name)
             spot_path = os.path.join(datasets[label].data_folder, spot_file)
 
-            label_dict = datasets[label].mapping
+            label_dict = datasets[label].data
             prefix_split = prefix.split("_")
 
             folder_name = datasets[label].data_folder.split("/")[-1]
@@ -130,7 +108,7 @@ def load_tracks_and_spots(datasets):
                 df_track = df_track.apply(pd.to_numeric, errors='coerce')
 
                 df_track['PREFIX'] = prefix
-                df_track['LABEL'] = label_dict[label_prefix]
+                df_track['LABEL'] = label_dict[label_prefix]["label"]
 
                 df_raw_spot = pd.read_csv(spot_path, encoding='latin1',
                                         header=None)
@@ -139,7 +117,7 @@ def load_tracks_and_spots(datasets):
                                     skiprows=1, names=names_spot)
                 df_spot = df_spot.apply(pd.to_numeric, errors='coerce')
                 df_spot['PREFIX'] = prefix
-                df_spot['LABEL'] = label_dict[label_prefix]
+                df_spot['LABEL'] = label_dict[label_prefix]["label"]
 
                 tracks.append(df_track)
                 spots.append(df_spot)
@@ -152,7 +130,7 @@ def load_tracks_and_spots(datasets):
                 sys.exit(1)
                 
                 continue
-
+    
     spots_df = pd.concat(spots, ignore_index=True)
     tracks_df = pd.concat(tracks, ignore_index=True)
 
@@ -188,7 +166,7 @@ def compute_msd(x, y, max_lag=None):
     return msd
 
 # === Step 4: Compute Features ===
-def compute_features(spots_df):
+def compute_features(spots_df, features):
     spots_df = spots_df.sort_values(by=["PREFIX", "TRACK_ID", "FRAME"])
     spots_df["VELOCITY_X"] = spots_df.groupby(
         ["PREFIX", "TRACK_ID"])["POSITION_X"].diff().fillna(0)
@@ -243,27 +221,31 @@ def compute_features(spots_df):
     )
     spots_df = spots_df.drop(columns=["MEAN_SQUARE_DISPLACEMENT_new"])
 
-    drop_cols = [col for col in spots_df.columns 
-                 if "INTENSITY" in col or col in ["POSITION_X", "POSITION_Y"]]
+
+    drop_cols = [col for col in spots_df.columns if "INTENSITY" in col or 
+                 (col in ["POSITION_X", "POSITION_Y"] and ["POSITION_X", "POSITION_Y"] in features)]
+
     spots_df.drop(columns=drop_cols, inplace=True, errors='ignore')
 
     for f in features:
         spots_df[f] = pd.to_numeric(spots_df[f], errors='coerce')
     spots_df = spots_df.replace([np.inf, -np.inf], np.nan).fillna(0)
+
     return spots_df
 
     
 # === Step 5: Align and Save Sequences ===
-def align_and_save_dataset(spots_df, features, seq_len=20,
+def align_and_save_dataset(spots_df, seq_features, seq_len=20,
                            output_prefix=""):
     X_list, y_list, track_id_list = [], [], []
     rows = []
+
     for (p, tid), traj in spots_df.groupby(["PREFIX", "TRACK_ID"]):
-        feat = traj[features].values
+        feat = traj[seq_features].values
         if len(feat) >= seq_len:
             feat = feat[:seq_len]
         else:
-            pad = np.zeros((seq_len - len(feat), len(features)))
+            pad = np.zeros((seq_len - len(feat), len(seq_features)))
             feat = np.vstack([feat, pad])
 
         feat_scaled = feat.copy()
@@ -277,11 +259,12 @@ def align_and_save_dataset(spots_df, features, seq_len=20,
             rows.append(row)
     X = np.array(X_list)
     y = np.array(y_list)
+
     track_ids = np.array(track_id_list, dtype=object)
     np.savez(f"{GENERATED_DIR}/{output_prefix}trajectory_dataset_{seq_len}.npz",
-             X=X, y=y, track_ids=track_ids)
+             X=X, y=y, track_ids=track_ids, feature_list=np.array(seq_features))
 
-    df_out = pd.DataFrame(rows, columns=["SampleID", "Frame"] + features)
+    df_out = pd.DataFrame(rows, columns=["SampleID", "Frame"] + seq_features)
     df_out.to_csv(f"{GENERATED_DIR}/{output_prefix}trajectory_dataset_{seq_len}.csv", index=False)
 
     print(
@@ -292,9 +275,7 @@ def align_and_save_dataset(spots_df, features, seq_len=20,
 
 
 # === Step 6: Save Track-Level Dataset ===
-def build_track_level_dataset(tracks_df, datasets,
-                              output_prefix="", 
-                              track_features = track_features):
+def build_track_level_dataset(tracks_df, datasets, track_features, output_prefix=""):
     if len(track_features) == 0:
         print("[INFO] No track features available.")
         return
@@ -302,10 +283,11 @@ def build_track_level_dataset(tracks_df, datasets,
     merged_mapping = {}
 
     for label in datasets:
-        overlap = merged_mapping.keys() & datasets[label].mapping.keys()  # intersection of keys
+        label_mapping = {device: dataset_data.get("label") for device, dataset_data in datasets[label].data.items()}
+        overlap = merged_mapping.keys() & label_mapping.keys()  # intersection of keys
         if overlap:
             raise ValueError(f"Overlapping keys found when merging: {overlap}")
-        merged_mapping.update(datasets[label].mapping)
+        merged_mapping.update(label_mapping)
 
     def match_label(prefix, merged_mapping):
         prefix = "_".join(prefix.split("_")[:2])
@@ -338,7 +320,8 @@ def build_track_level_dataset(tracks_df, datasets,
     np.savez(f"{GENERATED_DIR}/{output_prefix}track_dataset.npz", 
             X=df_final[track_features].values, 
             y=df_final["LABEL"].values,
-            track_ids=df_final[["PREFIX", "TRACK_ID"]].values)
+            track_ids=df_final[["PREFIX", "TRACK_ID"]].values,
+            feature_list=np.array(track_features))
     print(f"[Save] Dataset saved: {GENERATED_DIR}/{output_prefix}track_dataset.csv & .npz")
 
 
@@ -412,7 +395,7 @@ def filter_outer(spots_df):
     return spots_df
 
 
-def count_num_of_tracks(seq_path, track_path):
+def count_num_of_tracks(seq_path, track_path, datasets):
     from collections import defaultdict
     from Config import DATA_DIR
     seq_data = np.load(seq_path, allow_pickle=True)
@@ -430,63 +413,66 @@ def count_num_of_tracks(seq_path, track_path):
         for i, tid in enumerate(track_ids_track)
     }
 
-    test_label_dist_dict = defaultdict(int)
-    test_label_value_dist_dict = defaultdict(int)
+    # Combine all datasets data into one master df
+    all_cases_dict = {}
+    for label in datasets:
+        all_cases_dict = {**all_cases_dict, **datasets[label].data}
+    all_cases_df = pd.DataFrame.from_dict(all_cases_dict, orient='index').reset_index().rename(columns={'index':'Case Name'})
+
+
+    # Count tracks per each case and save as df
+    tracks_per_case_dict = defaultdict(int)
+    tracks_per_label_dict = defaultdict(int)
 
     for i, tid in enumerate(track_ids_seq):
         key = tuple(tid) if isinstance(tid, (list, tuple, np.ndarray)) else (tid,)
         if key in track_id_to_index:
             case_name = "_".join(tid[0].split("_")[:2])
-            test_label_dist_dict[case_name] += 1
-            test_label_value_dist_dict[y_seq[i]] += 1
-    label_df = pd.DataFrame([test_label_dist_dict])
-    label_df = label_df.T
-    label_df["Label"] = [0.5, 0.5, 0.5, 0.5,
-    1, 1, 0, 0,
-    0.5, 0.5, 0.5, 0.5,
-    1, 1, 1,
-    0.5, 0.5, 0,
-    0.5, 0, 1]
+            tracks_per_case_dict[case_name] += 1
+            tracks_per_label_dict[y_seq[i]] += 1
+    
+    label_df = pd.DataFrame.from_dict(tracks_per_case_dict, orient='index')
+    label_df = label_df.reset_index().rename(columns={'index': 'Case Name', 0 : "Number of Tracks"})
 
-    label_df = label_df.reset_index()
-    label_df.columns = ["Case Name", "Number of Tracks", "Label"]
-    label_df = label_df.sort_values(by="Number of Tracks")
-    label_df = label_df.sort_values(by="Label")
+    # Combine dataset data and track counts into a final merged df
+    track_count_df = pd.merge(label_df, all_cases_df, on='Case Name', how='left')
 
-    label_df.to_csv(f"{DATA_DIR}/label counts.csv", index=False)
+    track_count_df.columns = ["Case Name", "Number of Tracks", "Label", "PDO Size Change(%)"]
+    track_count_df = track_count_df.sort_values(by="Number of Tracks")
+    track_count_df = track_count_df.sort_values(by="Label")
+
+    track_count_df.to_csv(f"{DATA_DIR}/label counts.csv", index=False)
     print("Saved Label counts")
 
-
-if __name__ == "__main__":
+def create_dataset(features, track_features):
     datasets = {}
 
     for label in DATASET_CONFIGS:
         datasets[label] = Dataset_Batch(DATASET_CONFIGS[label]["annotation_path"], DATASET_CONFIGS[label]["data_folder"])
-        datasets[label].mapping = load_annotations(datasets[label].annotation_path, datasets[label].data_folder)
+        datasets[label].data = load_annotations(datasets[label].annotation_path, datasets[label].data_folder)
     
     spots_df, tracks_df = load_tracks_and_spots(datasets)
+    
 
     # Create train dataset
     spots_df, tracks_df = filter_valid_trajectories(spots_df, tracks_df)
-    spots_df = compute_features(spots_df)
+    spots_df = compute_features(spots_df, features)
     spots_df = filter_outer(spots_df)
-    save_unscaled_spot_features(spots_df, output_prefix="")
-    save_unscaled_track_features(tracks_df, datasets=datasets, output_prefix="")
+    save_unscaled_spot_features(spots_df, features, output_prefix="")
+    save_unscaled_track_features(tracks_df, datasets, track_features, output_prefix="")
 
-    features = [ # Time-based Features 
-        'AREA', 'PERIMETER', 'CIRCULARITY',
-        'ELLIPSE_ASPECTRATIO','SOLIDITY', 
-        'SPEED', "MEAN_SQUARE_DISPLACEMENT"
-    ]
+    #features.remove("RADIUS")
 
-    from Config import SEQ_LEN
     for seq_len_iter in [SEQ_LEN]:
         align_and_save_dataset(spots_df,
                             features, seq_len=seq_len_iter,
                             output_prefix=SEQ_DATASET_PREFIX)
     
-    build_track_level_dataset(tracks_df, datasets=datasets, output_prefix=TRACK_DATASET_PREFIX)   
+    build_track_level_dataset(tracks_df, datasets, track_features, output_prefix=TRACK_DATASET_PREFIX)   
     count_num_of_tracks(f"{GENERATED_DIR}/{SEQ_DATASET_PREFIX}trajectory_dataset_{SEQ_LEN}.npz",
-                        f"{GENERATED_DIR}/{TRACK_DATASET_PREFIX}track_dataset.npz",)
+                        f"{GENERATED_DIR}/{TRACK_DATASET_PREFIX}track_dataset.npz", datasets)
     
     print("Dataset creation completed.")
+
+if __name__ == "__main__":
+    create_dataset(SEQ_FEATURES, TRACK_FEATURES)
