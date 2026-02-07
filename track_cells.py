@@ -2,10 +2,10 @@ import os
 import imagej
 import jpype
 import scyjava
-from Config import DATA_DIR, FIJI_PATH, JAVA_ARGUMENTS, CELL_TRACKING_DATASET_CONFIGS
+from Config import DATA_DIR, FIJI_PATH, JAVA_ARGUMENTS, DATASET_CONFIGS
 import pandas as pd
 
-def track_with_trackmate(images_folder, subcase_names, case_name, fiji_path, prefix = "", specific_thresholds ={}, 
+def track_with_trackmate(images_folder, subcase_names, case_name, fiji_path, prefix = "", specific_image_transformations ={}, 
                          include_spots_without_track_id = False, ignore_duplicate_warning = False, java_arguments = ""):
 
     # Check if output folder can be created
@@ -77,6 +77,13 @@ def track_with_trackmate(images_folder, subcase_names, case_name, fiji_path, pre
         cal.setTimeUnit("frames")
         imp.setCalibration(cal)
 
+        # Apply transformations
+        for transformation in specific_image_transformations:
+            for image_path in specific_image_transformations[transformation]:
+                if (image_path in XY_position_folder_path and
+                    type(specific_image_transformations[transformation]) != dict):
+                    ij.IJ.run(imp, transformation, "stack")
+
         # Convert Z slices to T slices
         HyperStackConverter = jpype.JClass("ij.plugin.HyperStackConverter")
         nframes = imp.getStackSize()
@@ -100,9 +107,9 @@ def track_with_trackmate(images_folder, subcase_names, case_name, fiji_path, pre
         # Sometimes Auto-threshold gets it wrong, and detects too many cells
         # use SPECIAL_THRESHOLDING in Config to set a specific threshold for a 
         # specific folder
-        for key in specific_thresholds:
-            if key in XY_position_folder_path:
-                intensity_threshold = Double(specific_thresholds[key])
+        for image_path in specific_image_transformations.get("specific_thresholds", {}):
+            if image_path in XY_position_folder_path:
+                intensity_threshold = Double(specific_image_transformations["specific_thresholds"][image_path])
 
         print("Using intensity threshold of: ", intensity_threshold)
 
@@ -263,6 +270,7 @@ def track_with_trackmate(images_folder, subcase_names, case_name, fiji_path, pre
         # -------------------------------------------------------------------------------
         # SAVE RESULTS
         # -------------------------------------------------------------------------------
+        print(f"Saving Results ...")
         df_spots = pd.DataFrame(all_spots)
         df_spots = df_spots.sort_values(by="TRACK_ID")
 
@@ -282,23 +290,25 @@ def track_with_trackmate(images_folder, subcase_names, case_name, fiji_path, pre
                 print(f"'{spots_output_path}' and '{track_output_path}'\n")
                 break
         else:
-            print(f" No subcases in: {subcase_names} could be found in '{subcase_folder_path}'.")
-            print(f" Please update {subcase_names} or rename '{subcase_folder_path}'.")
-            input()
+            print(f"ERROR: {subcase_folder_path} is not associated with any {subcase_names}.")
+            print(f"ERROR: Please update {subcase_names} or rename '{subcase_folder_path}' to contain one of the subcase names.")
+            print(f"ERROR: Results will not be saved.")
+            input("Press Enter to continue.")
 
 if __name__ == "__main__":
-    for case in CELL_TRACKING_DATASET_CONFIGS:
-        for subfolder in sorted(os.listdir(CELL_TRACKING_DATASET_CONFIGS[case]["images_folder"])):
-            images_subfolder = os.path.join(CELL_TRACKING_DATASET_CONFIGS[case]["images_folder"], subfolder)
-            track_with_trackmate(images_subfolder, 
-                                CELL_TRACKING_DATASET_CONFIGS[case]["subcase_names"],
-                                CELL_TRACKING_DATASET_CONFIGS[case]["case_name"], 
-                                FIJI_PATH, 
-                                prefix = CELL_TRACKING_DATASET_CONFIGS[case]["prefix"],
-                                specific_thresholds = CELL_TRACKING_DATASET_CONFIGS[case].get("specific_thresholds", {}),
-                                java_arguments = JAVA_ARGUMENTS,
-                                include_spots_without_track_id = False, 
-                                ignore_duplicate_warning = True)
+    for case in DATASET_CONFIGS:
+        for file in sorted(os.listdir(DATASET_CONFIGS[case]["images_folder"])):
+            images_subfolder = os.path.join(DATASET_CONFIGS[case]["images_folder"], file)
+            if os.path.isdir(images_subfolder):
+                track_with_trackmate(images_subfolder, 
+                                    DATASET_CONFIGS[case]["subcase_names"],
+                                    DATASET_CONFIGS[case]["case_name"], 
+                                    FIJI_PATH, 
+                                    prefix = DATASET_CONFIGS[case]["prefix"],
+                                    specific_image_transformations = DATASET_CONFIGS[case].get("specific_image_transformations", {}),
+                                    java_arguments = JAVA_ARGUMENTS,
+                                    include_spots_without_track_id = False, 
+                                    ignore_duplicate_warning = True)
     print("------------------------")
     print("Cell Tracking Complete!")
     print("------------------------")

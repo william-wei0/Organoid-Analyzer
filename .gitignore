@@ -3,4 +3,6 @@ Data/
 Generated/
 Results/
 __pycache__/
+sort_images_by_XY.py
+collect_scores.py
 *.pyc
