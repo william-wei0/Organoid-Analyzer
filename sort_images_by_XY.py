@@ -35,8 +35,8 @@ def sort_images_by_XY(images_folder):
         print(f"Moved {fname} to {dest_folder}")
 
 if __name__ == "__main__":
-    base_folder = r"/Data/PDO"
-
+    base_folder = r"C:\Users\billy\Documents\VIP Images\Dynamics AI model_Dave_Low response stroma CART dynamics\10292025 NCI 9 Stroma CART dynamics_Round 2_progressive"
     for subfolder in sorted(os.listdir(base_folder)):
         subfolder_path = os.path.join(base_folder, subfolder)
-        sort_images_by_XY(subfolder_path)
+        if not os.path.isfile(subfolder_path): # Skip annotation files, only sort folders wtih images
+            sort_images_by_XY(subfolder_path)
