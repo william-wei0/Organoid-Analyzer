@@ -2,6 +2,8 @@
 
 A Python-based machine learning pipeline for analyzing the morphology and trajectory of CAR T cells on patient outcomes from time-lapse flourescent microscopy images of patient-derived organoids of pancreatic adenocarcinoma.
 
+<img width="1440" height="720" alt="NEBEC2025" src="https://github.com/user-attachments/assets/31481fa7-3c8c-4a0c-b439-f0e52f7358fd" />
+
 ## Overview
 
 This project uses Fiji's TrackMate plugin to track cells in time-lapse images, extracts features from the trajectories, and trains a unified fusion model (combining LSTM sequence features and track-level features) to classify organoid responses into three categories: Progressive, Stable, or Responsive.
